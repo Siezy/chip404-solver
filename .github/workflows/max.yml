@@ -1,0 +1,41 @@
+name: chip404-max
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'base nonce'
+        required: true
+        default: '4000000000000'
+      runtime_min:
+        description: 'minutes'
+        required: false
+        default: '50'
+      rounds:
+        description: 'rounds per job'
+        required: false
+        default: '3'
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        shard: [0, 1, 2, 3]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build + mine (weight 41, AVX-512)
+        run: |
+          gcc -O3 -march=native -funroll-loops -mavx512f -o avx chip404_avx512.c -lpthread
+          BASE=${{ github.event.inputs.base }}
+          SHARD=${{ matrix.shard }}
+          ROUNDS=${{ github.event.inputs.rounds }}
+          SPAN=100000000000
+          for r in $(seq 0 $((ROUNDS-1))); do
+            START=$((BASE + SHARD * SPAN + r * 400000000000))
+            echo "round $r start $START"
+            timeout $(( (${{ github.event.inputs.runtime_min }} / ROUNDS) * 60 )) ./avx $START 4 > miner_${r}.log 2>&1 || true
+            grep -a "FOUND nonce" miner_*.log && { echo "=== NONCE FOUND ==="; grep -ah "FOUND nonce" miner_*.log; exit 0; }
+          done
+          echo "not found"
+          exit 1
