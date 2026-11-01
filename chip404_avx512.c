@@ -133,7 +133,7 @@ static void build_input(uint8_t in[84], uint64_t nonce){
 // (bit 47 of lane0). Re-read weightNow() on-chain before minting; if the
 // weight rose, re-verify the candidate against the fresh target.
 static inline int passes(uint64_t lane0){
-    return (lane0 & 0xFFFFFFFFFFULL)==0 && (lane0 & 0x800000000000ULL)==0;
+    return (lane0 & 0xFFFFFFFFFFULL)==0 && (lane0 & 0xC00000000000ULL)==0; /* weight 42: hash < 2^214 */
 }
 
 static volatile int FOUND=0;
