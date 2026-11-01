@@ -72,7 +72,7 @@ static void build_input(uint8_t in[84], uint64_t nonce){
     for(int i=0;i<8;i++) in[52+24+i]=(uint8_t)(nonce >> (56-8*i));
 }
 static inline int passes(uint64_t lane0){
-    return (lane0 & 0xFFFFFFFFFFULL)==0 && (lane0 & 0xC00000000000ULL)==0; /* weight 42 */
+    return (lane0 & 0xFFFFFFFFFFULL)==0 && (lane0 & 0xE00000000000ULL)==0; /* weight 43 */
 }
 static volatile int FOUND=0;
 static volatile uint64_t FOUND_NONCE=0;
