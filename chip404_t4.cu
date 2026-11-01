@@ -103,9 +103,7 @@ __global__ void mine_kernel(uint64_t start_nonce, unsigned long long *result, ui
     s[7]=0; s[8]=0;
     // bytes 72..79 = w9 = BE bytes of (nonce>>24)? Let's do byte-accurate:
     // message bytes 72..75 are zero (24 zeros span 52..75), bytes 76..83 = BE nonce (8 bytes)
-    // w9 = LE u64 of bytes 72..79 = bytes[72..75]=0 | bytes[76..79]=nonce[0..3] (BE) -> as LE uint64:
-    s[9] = (uint64_t)((uint32_t)(nonce >> 24)); // bytes 76..79 = (n>>24) BE? need byte layout check below
-    // Simpler & correct: compute via byte assembly for word9/word10:
+    // byte-accurate assembly for word9/word10:
     uint8_t n0 = (uint8_t)(nonce>>56), n1=(uint8_t)(nonce>>48), n2=(uint8_t)(nonce>>40), n3=(uint8_t)(nonce>>32);
     uint8_t n4 = (uint8_t)(nonce>>24), n5=(uint8_t)(nonce>>16), n6=(uint8_t)(nonce>>8),  n7=(uint8_t)(nonce);
     // bytes 72..75 = 0 (zero region), bytes 76..79 = n0..n3 (BE) => LE lane:
