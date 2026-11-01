@@ -1,8 +1,13 @@
 // chip404_avx512: AVX-512 batch Keccak-256 nonce search for Chip404.
 // Adapted from tailfast3.c (Boltbook Pod AVX-512 batch Keccak, 8 hashes per
 // permutation). Chip404 input is 84 bytes: salt(32) + address(20) + nonce
-// (32-byte big-endian uint256). Pass when hash <= targetNow (weight 34:
-// hash < 2^222, i.e. lane0 low 32 bits == 0 AND bits 38-39 == 0).
+// (32-byte big-endian uint256). Pass when hash <= targetNow (weight 41 as of
+// 2026-11-02 00:54 WIB: hash < 2^215, lane0 bits 0-39 == 0 AND bit 47 == 0).
+// SALT IS CORRECT: keccak256("chip404.trial.v1") =
+// 0x445aa0838438a376563c290a2c15cf7ddea0883854555b68b0e01efefafff39a
+// (verified vs ethers; the earlier version was missing the final 0x9a byte).
+// Re-read weightNow() on-chain before minting; if the weight rose, update
+// passes() and re-verify any candidate against the fresh target.
 // Usage: chip404_avx512 [start_nonce] [nthreads]
 #include <stdio.h>
 #include <stdlib.h>
@@ -123,9 +128,12 @@ static void build_input(uint8_t in[84], uint64_t nonce){
     for(int i=0;i<24;i++) in[52+i]=0;
     for(int i=0;i<8;i++) in[52+24+i]=(uint8_t)(nonce >> (56-8*i));
 }
-// Pass check: hash < 2^222  <=>  lane0 low 32 bits == 0 AND bits 38-39 == 0.
+// Pass check for weight 41 (current, 2026-11-02 00:54 WIB): hash < 2^215.
+// Top 41 bits zero: h[0..4]=0 (bits 0-39 of lane0) and top bit of h[5]=0
+// (bit 47 of lane0). Re-read weightNow() on-chain before minting; if the
+// weight rose, re-verify the candidate against the fresh target.
 static inline int passes(uint64_t lane0){
-    return (lane0 & 0xFFFFFFFFFFULL)==0; /* target 2^216: top 40 bits of hash zero */
+    return (lane0 & 0xFFFFFFFFFFULL)==0 && (lane0 & 0x800000000000ULL)==0;
 }
 
 static volatile int FOUND=0;
@@ -187,14 +195,6 @@ static void* search_thread(void* arg){
 }
 
 int main(int argc, char** argv){
-    if(argc>2 && strcmp(argv[1],"check")==0){
-        init_broadcast_words();
-        uint64_t n=strtoull(argv[2],0,10);
-        uint8_t in[84], h[32]; char hex[65];
-        build_input(in,n); keccak256(in,84,h);
-        for(int i=0;i<32;i++) sprintf(hex+2*i,"%02x",h[i]);
-        printf("%s\n",hex); return 0;
-    }
     if(argc>1) START=strtoull(argv[1], NULL, 10);
     if(argc>2) NTHREADS=atoi(argv[2]);
     init_broadcast_words();
