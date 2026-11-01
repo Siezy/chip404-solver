@@ -182,6 +182,30 @@ static int batch8(uint64_t base_nonce){
     return 0;
 }
 
+
+/* ---- scalar threaded fallback (for runners without AVX-512) ---- */
+static void* scalar_thread(void* arg){
+    long tid=(long)arg;
+    uint64_t nonce = START + (uint64_t)tid;
+    uint64_t stride = (uint64_t)NTHREADS;
+    uint8_t in[136]; uint8_t h[32]; uint64_t l0;
+    memcpy(in, SALT, 32); memcpy(in+32, ADDR, 20);
+    in[84]=0x01; in[135]=0x80;
+    while(!FOUND){
+        /* nonce 8B BE at 76..83 */
+        uint64_t be = __builtin_bswap64(nonce);
+        memcpy(in+76, &be, 8);
+        keccak256(in, 84, h);
+        memcpy(&l0, h, 8);
+        if((l0 & 0xFFFFFFFFFFULL)==0 && (l0 & 0xC00000000000ULL)==0){
+            FOUND_NONCE = nonce; FOUND = 1; return NULL;
+        }
+        nonce += stride;
+        __sync_fetch_and_add(&TRIED, 1);
+    }
+    return NULL;
+}
+
 static void* search_thread(void* arg){
     long tid=(long)arg;
     uint64_t nonce = START + (uint64_t)tid*8;
@@ -229,6 +253,28 @@ int main(int argc, char** argv){
         }
     }
     printf("selftest ok (scalar + AVX-512 batch)\n"); fflush(stdout);
+    /* AVX-512 detection */
+    int has_avx512 = __builtin_cpu_supports("avx512f"); { const char* fs=getenv("FORCE_SCALAR"); if(fs) has_avx512=0; }
+    printf("avx512f: %s\n", has_avx512 ? "yes" : "NO -> scalar mode"); fflush(stdout);
+    if(!has_avx512){
+        pthread_t* th2=malloc(sizeof(pthread_t)*NTHREADS);
+        struct timespec s0; clock_gettime(CLOCK_MONOTONIC,&s0);
+        for(long i=0;i<NTHREADS;i++) pthread_create(&th2[i],NULL,scalar_thread,(void*)i);
+        while(!FOUND){
+            struct timespec ts; clock_gettime(CLOCK_MONOTONIC,&ts);
+            double el=(ts.tv_sec-s0.tv_sec)+(ts.tv_nsec-s0.tv_nsec)/1e9;
+            if(el>=5.0){
+                unsigned long long tr=TRIED;
+                printf("\r%.1fM tried, %.0fs, %.2f M/s", tr/1e6, el, tr/el/1e6); fflush(stdout);
+                struct timespec s={0,200000000}; nanosleep(&s,NULL);
+                if(el>7200) break;
+            } else { struct timespec s={0,100000000}; nanosleep(&s,NULL); }
+        }
+        for(int i=0;i<NTHREADS;i++) pthread_join(th2[i],NULL);
+        if(FOUND) printf("\nFOUND nonce=%llu\n",(unsigned long long)FOUND_NONCE);
+        else printf("\nNOT FOUND\n");
+        return FOUND?0:1;
+    }
     pthread_t* th=malloc(sizeof(pthread_t)*NTHREADS);
     struct timespec t0; clock_gettime(CLOCK_MONOTONIC,&t0);
     for(long i=0;i<NTHREADS;i++) pthread_create(&th[i],NULL,search_thread,(void*)i);
