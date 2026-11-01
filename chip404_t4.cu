@@ -56,8 +56,8 @@ __device__ __forceinline__ void keccakf1600(uint64_t *s){
     s[19] = rol64(s[23],56); s[23] = rol64(s[15],41); s[15] = rol64(s[4], 27);
     s[4]  = rol64(s[24],14); s[24] = rol64(s[21], 2); s[21] = rol64(s[8], 55);
     s[8]  = rol64(s[16],45); s[16] = rol64(s[5], 36); s[5]  = rol64(s[3], 28);
-    s[3]  = rol64(s[18],21); s[18] = rol64(s[17],10); s[17] = rol64(s[11], 6);
-    s[11] = rol64(s[7],  3); s[7]  = rol64(t,     1);
+    s[3]  = rol64(s[18],21); s[18] = rol64(s[17],15); s[17] = rol64(s[11],10);
+    s[11] = rol64(s[7],  6); s[7]  = rol64(s[10], 3); s[10] = rol64(t, 1);
     #pragma unroll
     for(int j=0;j<25;j+=5){
       uint64_t a0=s[j],a1=s[j+1],a2=s[j+2],a3=s[j+3],a4=s[j+4];
