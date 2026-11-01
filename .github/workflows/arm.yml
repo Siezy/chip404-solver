@@ -1,0 +1,32 @@
+name: chip404-arm
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: 'base nonce'
+        required: true
+        default: '6000000000000'
+      runtime_min:
+        description: 'minutes'
+        required: false
+        default: '55'
+jobs:
+  solve:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        shard: [0, 1, 2, 3]
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build + mine (scalar/AVX auto, weight 42)
+        run: |
+          gcc -O3 -march=native -funroll-loops -mavx512f -o avx chip404_avx512.c -lpthread || gcc -O3 -march=native -funroll-loops -o avx chip404_avx512.c -lpthread
+          BASE=${{ github.event.inputs.base }}
+          SHARD=${{ matrix.shard }}
+          SPAN=100000000000
+          START=$((BASE + SHARD * SPAN))
+          echo "start $START"
+          timeout ${{ github.event.inputs.runtime_min }}m ./avx $START 4 > miner.log 2>&1 || true
+          grep -ah "FOUND nonce" miner.log || { echo "not found"; tail -1 miner.log; exit 1; }
