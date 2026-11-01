@@ -1,0 +1,55 @@
+name: chip404-solver
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: 'nonce start'
+        required: true
+        default: '2000000000000'
+      runtime_min:
+        description: 'minutes before giving up'
+        required: false
+        default: '50'
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Build solver
+        run: |
+          gcc -O3 -march=native -funroll-loops -o solver solver.c
+          # sanity check vs known vector
+          H=$(./solver test "")
+          echo "empty hash: $H"
+          [ "$H" = "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470" ] || { echo "KECCAK BROKEN"; exit 1; }
+      - name: Mine
+        id: mine
+        run: |
+          SALT=445aa0838438a376563c290a2c15cf7ddea0883854555b68b0e01efefafff39a
+          ADDR=BC4Dd3032b7Cfa8aF05c157CaFd5dde8f12b4d06
+          START=${{ github.event.inputs.start }}
+          # run one process per core
+          NPROC=$(nproc)
+          echo "cores: $NPROC"
+          pids=()
+          for i in $(seq 0 $((NPROC-1))); do
+            S=$((START + i * 10000000000000))
+            ./solver mine $SALT $ADDR $S > out_$i.bin &
+            pids+=($!)
+          done
+          END=$((SECONDS + ${{ github.event.inputs.runtime_min }} * 60))
+          FOUND=""
+          while [ $SECONDS -lt $END ]; do
+            sleep 10
+            for i in $(seq 0 $((NPROC-1))); do
+              if [ -s out_$i.bin ]; then
+                FOUND=$(od -An -tu8 out_$i.bin | head -1 | tr -s ' ')
+                echo "FOUND_NONCE=$FOUND" >> $GITHUB_OUTPUT
+                echo "NONCE FOUND: $FOUND (worker $i)"
+                for p in "${pids[@]}"; do kill $p 2>/dev/null; done
+                exit 0
+              fi
+            done
+          done
+          echo "not found within window"
+          exit 1

@@ -1,0 +1,1 @@
+# chip404 nonce search\nSearches a keccak nonce below target for the Chip404 free mint (gas-only, no funds at risk).\n
