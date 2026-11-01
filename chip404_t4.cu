@@ -129,6 +129,7 @@ __global__ void mine_kernel(uint64_t start_nonce, unsigned long long *result, ui
 static int hexval(char c){ if(c>='0'&&c<='9')return c-'0'; if(c>='a'&&c<='f')return c-'a'+10; if(c>='A'&&c<='F')return c-'A'+10; return -1; }
 
 int main(int argc, char** argv){
+  printf("KERNEL VERSION v2-fixed-rhopi\n");
   uint64_t start = (argc>1)? strtoull(argv[1],0,10) : 0ULL;
   int blocks = (argc>2)? atoi(argv[2]) : 320;
   int threads = (argc>3)? atoi(argv[3]) : 256;
@@ -168,7 +169,11 @@ int main(int argc, char** argv){
     cudaMemcpy(h_h,d_h,32,cudaMemcpyDeviceToHost);
     cudaFree(d_h);
     char hexbuf[65];
-    for(int i=0;i<4;i++) sprintf(hexbuf+16*i, "%016llx", (unsigned long long)h_h[i]);
+    for(int i=0;i<4;i++){
+      uint64_t v = h_h[i];
+      for(int b=0;b<8;b++) sprintf(hexbuf+16*i+2*b, "%02x", (unsigned)((v>>(8*b))&0xFF));
+    }
+    hexbuf[64]=0;
     printf("device hash nonce0 = %s\n", hexbuf);
     if(strcmp(hexbuf, "4697b4d517d780dbcc24dc62dd33aff29586543f77bea295ba753a27dd62b805")==0)
       printf("SELFTEST PASS - safe to mine\n");
