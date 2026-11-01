@@ -5,9 +5,9 @@ on:
       start:
         description: 'nonce start'
         required: true
-        default: '2000000000000'
+        default: '4000000000000'
       runtime_min:
-        description: 'minutes before giving up'
+        description: 'minutes'
         required: false
         default: '50'
 jobs:
@@ -16,39 +16,12 @@ jobs:
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
-      - name: Build
+      - name: Build + mine (AVX-512, 4 threads, 2^216)
         run: |
-          gcc -O3 -march=native -funroll-loops -o solver solver.c
-          H=$(./solver test "")
-          [ "$H" = "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470" ] || { echo KECCAK_BROKEN; exit 1; }
-      - name: Mine (4 cores, 2^216 target)
-        run: |
-          export TARGET_HI=0000000000ffffff
-          SALT=445aa0838438a376563c290a2c15cf7ddea0883854555b68b0e01efefafff39a
-          ADDR=BC4Dd3032b7Cfa8aF05c157CaFd5dde8f12b4d06
-          START=${{ github.event.inputs.start }}
-          NPROC=$(nproc); echo "cores: $NPROC"
-          SPAN=100000000000
-          pids=()
-          for i in $(seq 0 $((NPROC-1))); do
-            S=$((START + i * SPAN))
-            ./solver mine $SALT $ADDR $S > found_$i.bin &
-            pids+=($!)
-          done
+          gcc -O3 -march=native -funroll-loops -mavx512f -o avx chip404_avx512.c -lpthread || { echo NO_AVX512_BUILD; exit 42; }
           END=$((SECONDS + ${{ github.event.inputs.runtime_min }} * 60))
-          while [ $SECONDS -lt $END ]; do
-            sleep 15
-            for i in $(seq 0 $((NPROC-1))); do
-              if [ -s found_$i.bin ]; then
-                NONCE=$(od -An -tu8 found_$i.bin | tr -d ' \n')
-                echo "NONCE FOUND: $NONCE (worker $i)"
-                for p in "${pids[@]}"; do kill $p 2>/dev/null; done
-                echo "NONCE=$NONCE" > nonce.txt
-                exit 0
-              fi
-            done
-          done
-          echo "not found in window"; exit 1
-      - name: Show result
-        if: always()
-        run: cat nonce.txt 2>/dev/null || echo "no nonce"
+          timeout $((END - SECONDS)) ./avx ${{ github.event.inputs.start }} 4 > miner.log 2>&1
+          RC=$?
+          echo "miner exit: $RC"
+          grep -a "FOUND nonce" miner.log || echo "not found"
+          tail -1 miner.log
