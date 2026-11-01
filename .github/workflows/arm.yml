@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build + mine (scalar/AVX auto, weight 42)
         run: |
-          gcc -O3 -march=native -funroll-loops -mavx512f -o avx chip404_avx512.c -lpthread || gcc -O3 -march=native -funroll-loops -o avx chip404_avx512.c -lpthread
+          gcc -O3 -march=native -funroll-loops -mavx512f -o avx chip404_avx512.c -lpthread 2>/dev/null || gcc -O3 -funroll-loops -DNO_AVX512 -o avx chip404_avx512.c -lpthread
           BASE=${{ github.event.inputs.base }}
           SHARD=${{ matrix.shard }}
           SPAN=100000000000

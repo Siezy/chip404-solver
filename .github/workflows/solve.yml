@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build + mine (AVX-512, 4 threads, 2^216)
         run: |
-          gcc -O3 -march=native -funroll-loops -mavx512f -o avx chip404_avx512.c -lpthread || { echo NO_AVX512_BUILD; exit 42; }
+          gcc -O3 -march=native -funroll-loops -mavx512f -o avx chip404_avx512.c -lpthread 2>/dev/null || gcc -O3 -funroll-loops -DNO_AVX512 -o avx chip404_avx512.c -lpthread
           END=$((SECONDS + ${{ github.event.inputs.runtime_min }} * 60))
           timeout $((END - SECONDS)) ./avx ${{ github.event.inputs.start }} 4 > miner.log 2>&1
           RC=$?
