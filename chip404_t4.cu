@@ -99,8 +99,6 @@ __global__ void mine_kernel(uint64_t start_nonce, unsigned long long *result, ui
     // careful: constant table approach - load from constant memory
     uint64_t base0 = d_SALTADDR[0], base1 = d_SALTADDR[1], base2 = d_SALTADDR[2], base3 = d_SALTADDR[3];
     uint64_t base4 = d_SALTADDR[4], base5 = d_SALTADDR[5], base6 = d_SALTADDR[6];
-    // nonce as BE in last 8 bytes (76..83)
-    uint64_t be = __bswap64(nonce);
     s[0]=base0; s[1]=base1; s[2]=base2; s[3]=base3; s[4]=base4; s[5]=base5; s[6]=base6;
     s[7]=0; s[8]=0;
     // bytes 72..79 = w9 = BE bytes of (nonce>>24)? Let's do byte-accurate:
